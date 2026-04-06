@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Places - AI Location Guide</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background: #f8f9fa; }
+        .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; }
+        .navbar .logo { font-size: 24px; font-weight: bold; }
+        .navbar .nav-links { display: flex; gap: 20px; }
+        .navbar .nav-links a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 20px; }
+        .navbar .nav-links a:hover { background: rgba(255,255,255,0.2); }
+        
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        h1 { margin-bottom: 20px; color: #333; }
+        
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-btn { padding: 10px 20px; border: none; background: white; border-radius: 20px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .filter-btn.active { background: #667eea; color: white; }
+        
+        .places-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .place-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.3s; }
+        .place-card:hover { transform: translateY(-5px); }
+        .place-image { height: 150px; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; font-size: 48px; }
+        .place-info { padding: 20px; }
+        .place-info h3 { font-size: 18px; color: #333; margin-bottom: 8px; }
+        .place-info .category { display: inline-block; background: #e8f0fe; color: #667eea; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-bottom: 10px; }
+        .place-info .details { color: #666; font-size: 14px; }
+        .place-info .details span { margin-right: 15px; }
+        .place-info .ai-score { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .place-info .ai-score .score { font-size: 24px; font-weight: bold; color: #667eea; }
+        .place-info .ai-score .label { font-size: 12px; color: #999; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">📍 AI Location Guide</div>
+        <div class="nav-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/places" style="background:rgba(255,255,255,0.2)">Places</a>
+            <a href="/map">Map</a>
+            <a href="/">Logout</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <h1>Discover Places 🏖️</h1>
+        
+        <div class="filters">
+            <button class="filter-btn active" onclick="filterCategory('all')">All</button>
+            <button class="filter-btn" onclick="filterCategory('restaurant')">🍽️ Dining</button>
+            <button class="filter-btn" onclick="filterCategory('temple')">🛕 Spirituality</button>
+            <button class="filter-btn" onclick="filterCategory('beach')">🏖️ Leisure</button>
+            <button class="filter-btn" onclick="filterCategory('mall')">🛍️ Shopping</button>
+            <button class="filter-btn" onclick="filterCategory('cafe')">☕ Cafes</button>
+            <button class="filter-btn" onclick="filterCategory('park')">🌳 Parks</button>
+        </div>
+        
+        <div class="places-grid" id="placesGrid">
+            <p>Loading places...</p>
+        </div>
+    </div>
+    
+    <script>
+        var currentCategory = 'all';
+        
+        async function loadPlaces() {
+            try {
+                var cat = currentCategory === 'all' ? null : currentCategory;
+                var res = await fetch('/location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: 20.5937, longitude: 78.9629, category: cat })
+                });
+                var data = await res.json();
+                displayPlaces(data.nearby_places || []);
+            } catch(e) {
+                console.log('Error:', e);
+            }
+        }
+        
+        function displayPlaces(places) {
+            var grid = document.getElementById('placesGrid');
+            if (places.length === 0) {
+                grid.innerHTML = '<p>No places found</p>';
+                return;
+            }
+            grid.innerHTML = places.map(function(p) {
+                return '<div class="place-card" onclick="window.location.href=\'/map\'">' +
+                    '<div class="place-image">' + (p.subcategory || '📍') + '</div>' +
+                    '<div class="place-info">' +
+                        '<h3>' + p.name + '</h3>' +
+                        '<span class="category">' + p.category + '</span>' +
+                        '<div class="details">' +
+                            '<span>⭐ ' + p.rating + '</span>' +
+                            '<span>📍 ' + p.distance + ' km</span>' +
+                            '<span>' + (p.crowd_level === 'low' ? '🟢 Quiet' : p.crowd_level === 'medium' ? '🟡 Moderate' : '🔴 Busy') + '</span>' +
+                        '</div>' +
+                        '<div class="ai-score">' +
+                            '<div class="score">' + p.ai_score + '</div>' +
+                            '<div class="label">AI Score</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+        
+        function filterCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+            event.target.classList.add('active');
+            loadPlaces();
+        }
+        
+        loadPlaces();
+    </script>
+</body>
+</html>
