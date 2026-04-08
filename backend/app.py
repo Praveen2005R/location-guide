@@ -2,34 +2,24 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from flask import Flask, request, jsonify, render_template, redirect
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from models.models import db, User, UserPreference, Place, Visit, ScrapedData
-from config.config import Config
-import bcrypt
-from datetime import datetime
 import random
+from datetime import datetime
 from math import radians, sin, cos, sqrt, atan2
 
 app = Flask(__name__,
             template_folder=os.path.join(os.path.dirname(__file__), '..', 'frontend', 'templates'),
             static_folder=os.path.join(os.path.dirname(__file__), '..', 'frontend'))
-app.config.from_object(Config)
+
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///./location_guide.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 CORS(app)
-db.init_app(app)
-jwt = JWTManager(app)
 
-with app.app_context():
-    db.create_all()
-
-def hash_password(password):
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-def verify_password(password, password_hash):
-    return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+users_db = {}  # Simple in-memory user storage
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371
@@ -169,24 +159,21 @@ def register():
     data = request.get_json()
     if not data or not data.get('username') or not data.get('email') or not data.get('password'):
         return jsonify({'error': 'Username, email, and password required'}), 400
-    if User.query.filter((User.username == data['username']) | (User.email == data['email'])).first():
-        return jsonify({'error': 'Username or email exists'}), 409
-    user = User(username=data['username'], email=data['email'], password_hash=hash_password(data['password']))
-    db.session.add(user)
-    db.session.commit()
-    token = create_access_token(identity=user.id)
-    return jsonify({'message': 'Registered', 'token': token, 'user_id': user.id}), 201
+    if data['email'] in users_db:
+        return jsonify({'error': 'Email already exists'}), 409
+    user_id = len(users_db) + 1
+    users_db[data['email']] = {'id': user_id, 'username': data['username'], 'email': data['email']}
+    return jsonify({'message': 'Registered', 'user_id': user_id}), 201
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json()
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({'error': 'Email and password required'}), 400
-    user = User.query.filter_by(email=data['email']).first()
-    if not user or not verify_password(data['password'], user.password_hash):
+    if data['email'] not in users_db:
         return jsonify({'error': 'Invalid credentials'}), 401
-    token = create_access_token(identity=user.id)
-    return jsonify({'message': 'Logged in', 'token': token, 'user_id': user.id}), 200
+    user = users_db[data['email']]
+    return jsonify({'message': 'Logged in', 'user_id': user['id']}), 200
 
 # Location & AI Routes
 @app.route('/location', methods=['POST'])
@@ -230,8 +217,4 @@ def get_places():
 
 @app.route('/api/health')
 def health():
-    return jsonify({'status': 'healthy', 'ai_engine': 'active', 'scrapers': 'ready'}), 200
-
-if __name__ == '__main__':
-    from werkzeug.serving import run_simple
-    run_simple('127.0.0.1', 5000, app, use_reloader=False, threaded=True)
+    return jsonify({'status': 'healthy'}), 200
