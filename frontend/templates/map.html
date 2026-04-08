@@ -316,20 +316,29 @@
         }
         
         function showDirections(destLat, destLng, placeName) {
-            directionsRenderer.setMap(map);
-            directionsRenderer.setPanel(null);
-            
-            directionsService.route({
-                origin: { lat: userLat, lng: userLng },
-                destination: { lat: destLat, lng: destLng },
-                travelMode: 'DRIVING'
-            }, function(response, status) {
-                if (status === 'OK') {
-                    directionsRenderer.setDirections(response);
-                } else {
-                    alert('Could not get directions: ' + status);
-                }
-            });
+            if (directionsService && directionsRenderer) {
+                directionsRenderer.setMap(map);
+                directionsRenderer.setPanel(null);
+                
+                directionsService.route({
+                    origin: { lat: userLat, lng: userLng },
+                    destination: { lat: destLat, lng: destLng },
+                    travelMode: 'DRIVING'
+                }, function(response, status) {
+                    if (status === 'OK') {
+                        directionsRenderer.setDirections(response);
+                    } else {
+                        openGoogleMapsNavigation(destLat, destLng);
+                    }
+                });
+            } else {
+                openGoogleMapsNavigation(destLat, destLng);
+            }
+        }
+        
+        function openGoogleMapsNavigation(destLat, destLng) {
+            var url = 'https://www.google.com/maps/dir/?api=1&destination=' + destLat + ',' + destLng;
+            window.open(url, '_blank');
         }
     </script>
 </body>
